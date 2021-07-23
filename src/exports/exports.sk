@@ -24,27 +24,8 @@ namespace GLSLX.Exports {
 
   def printUsage {
     console.log("
-Usage: glslx [sources] [flags]
-
-  --output=PATH
-    Set the path to the output file. Defaults to standard out.
-
-  --format=FORMAT
-    Set the output format, must be json, js, c++, skew or rust. Defaults to json.
-
-Advanced:
-
-  --disable-rewriting
-    Disable syntax tree rewriting, useful to check for driver bugs.
-
-  --pretty-print
-    Format the output nicely instead of minifying it.
-
-  --renaming=MODE
-    Valid modes are all, internal-only, or none. Defaults to all.
-
-  --keep-symbols
-    Don't inline constants or remove unused symbols.
+Glslx command line formatter.
+Usage: glslx [sources]
 ")
   }
 
@@ -415,7 +396,7 @@ Advanced:
   # Source code formatting
   const format = (input dynamic, options dynamic) string => {
     options = options || ({} as dynamic)
-    var indent = "indent" in options ? options.indent as string : "  "
+    var indent = "indent" in options ? options.indent as string : "    "
     var newline = "newline" in options ? options.newline as string : "\n"
     var trailingNewline = Formatter.TrailingNewline.INSERT
     if "trailingNewline" in options {
@@ -455,72 +436,17 @@ Advanced:
 
   def commandLineMain {
     var args List<string> = process.argv.slice(2)
-    var options = CompilerOptions.new
-    var sources List<Source> = []
-    var outputFormat = OutputFormat.JSON
-    var outputPath string = null
+    var sources List<string> = []
     var fs = require("fs")
-    var path = require("path")
-
-    options.fileAccess = (filePath, relativeTo) => {
-      var name = path.resolve(path.dirname(relativeTo), filePath)
-      try { return Source.new(name, fs.readFileSync(name, "utf8")) }
-      return null
-    }
 
     for arg in args {
       if !arg.startsWith("-") {
-        sources.append(Source.new(path.resolve(arg), fs.readFileSync(arg, "utf8")))
+        sources.append(arg)
         continue
       }
-
-      switch arg {
-        case "--disable-rewriting" {
-          options.compactSyntaxTree = false
-        }
-
-        case "--pretty-print" {
-          options.removeWhitespace = false
-        }
-
-        case "--keep-symbols" {
-          options.trimSymbols = false
-        }
-
-        case "--help", "-h" {
-          printUsage
-          return
-        }
-
-        default {
-          if arg.startsWith("--output=") {
-            outputPath = arg.slice("--output=".count)
-          }
-
-          else if arg.startsWith("--format=") {
-            var text = arg.slice("--format=".count)
-            if !(text in outputFormats) {
-              console.log("invalid output format \"\(text)\"")
-              process.exit(1)
-            }
-            outputFormat = outputFormats[text]
-          }
-
-          else if arg.startsWith("--renaming=") {
-            var text = arg.slice("--renaming=".count)
-            if !(text in renameSymbols) {
-              console.log("invalid symbol renaming mode \"\(text)\"")
-              process.exit(1)
-            }
-            options.renameSymbols = renameSymbols[text]
-          }
-
-          else {
-            console.log("invalid flag \"\(arg)\"")
-            process.exit(1)
-          }
-        }
-      }
+      
+      console.log("invalid flag \"\(arg)\"")
+      process.exit(1)
     }
 
     if sources.isEmpty {
@@ -528,19 +454,16 @@ Advanced:
       return
     }
 
+    for sourceFile in sources {
     var log = Log.new
-    var result = Compiler.compile(log, sources, options)
+    var result = format(fs.readFileSync(sourceFile, "utf8"), {})
 
     if result != null {
-      if outputPath != null {
-        fs.writeFileSync(outputPath, result.output(outputFormat))
+        fs.writeFileSync(sourceFile, result)
         printLogWithColor(log)
-      } else {
-        process.stdout.write(result.output(outputFormat))
-      }
     } else {
       printLogWithColor(log)
-      process.exit(1)
+    }
     }
   }
 
